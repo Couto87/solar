@@ -4,6 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Simulação de Sombras - Marquise e Coluna</title>
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23fbbf24'/%3E%3Cstop offset='1' stop-color='%23f97316'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='12' fill='%23050914'/%3E%3Ccircle cx='22' cy='22' r='10' fill='url(%23g)'/%3E%3Cpath d='M14 46h36l-12-16-12 10-12-6z' fill='%231f2937'/%3E%3C/svg%3E"
+    />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -31,6 +36,61 @@
             <input type="number" id="orientation" value="0" min="-180" max="180" step="1" />
             <small>Rotação da marquise/coluna em relação ao Norte geográfico.</small>
           </div>
+          <div class="section-heading">Configuração das Estruturas</div>
+          <fieldset class="structure-fieldset">
+            <legend>Marquise (Estrutura Horizontal)</legend>
+            <div class="input-group checkbox-group">
+              <label for="canopy-enabled">Exibir Marquise</label>
+              <input type="checkbox" id="canopy-enabled" checked />
+            </div>
+            <div class="structure-grid">
+              <label for="canopy-length">Comprimento (m)</label>
+              <input type="number" id="canopy-length" value="6" min="0.5" step="0.1" />
+              <label for="canopy-width">Largura (m)</label>
+              <input type="number" id="canopy-width" value="3.5" min="0.5" step="0.1" />
+              <label for="canopy-thickness">Espessura (m)</label>
+              <input type="number" id="canopy-thickness" value="0.3" min="0.05" step="0.05" />
+              <label for="canopy-height">Altura da Base (m)</label>
+              <input type="number" id="canopy-height" value="3.2" min="0.5" step="0.1" />
+              <label for="canopy-offset-x">Deslocamento X (m)</label>
+              <input type="number" id="canopy-offset-x" value="0" step="0.1" />
+              <label for="canopy-offset-z">Deslocamento Z (m)</label>
+              <input type="number" id="canopy-offset-z" value="0" step="0.1" />
+            </div>
+          </fieldset>
+
+          <fieldset class="structure-fieldset">
+            <legend>Coluna (Estrutura Vertical)</legend>
+            <div class="input-group checkbox-group">
+              <label for="column-enabled">Exibir Coluna</label>
+              <input type="checkbox" id="column-enabled" checked />
+            </div>
+            <div class="input-group">
+              <label for="column-shape">Formato</label>
+              <select id="column-shape">
+                <option value="circular" selected>Cilíndrico</option>
+                <option value="rectangular">Retangular</option>
+              </select>
+            </div>
+            <div class="structure-grid" data-column-shape="circular">
+              <label for="column-radius">Raio (m)</label>
+              <input type="number" id="column-radius" value="0.4" min="0.05" step="0.05" />
+            </div>
+            <div class="structure-grid" data-column-shape="rectangular">
+              <label for="column-width">Largura (m)</label>
+              <input type="number" id="column-width" value="0.5" min="0.05" step="0.05" />
+              <label for="column-depth">Profundidade (m)</label>
+              <input type="number" id="column-depth" value="0.5" min="0.05" step="0.05" />
+            </div>
+            <div class="structure-grid">
+              <label for="column-height">Altura (m)</label>
+              <input type="number" id="column-height" value="3.2" min="0.5" step="0.1" />
+              <label for="column-offset-x">Deslocamento X (m)</label>
+              <input type="number" id="column-offset-x" value="-2.5" step="0.1" />
+              <label for="column-offset-z">Deslocamento Z (m)</label>
+              <input type="number" id="column-offset-z" value="1.2" step="0.1" />
+            </div>
+          </fieldset>
           <div class="input-group">
             <label for="day-of-year">Dia do Ano</label>
             <input type="range" id="day-of-year" min="1" max="365" value="80" />
@@ -62,6 +122,7 @@
             <li>Utilize o mouse para orbitar, aproximar e afastar a câmera.</li>
             <li>A animação diária percorre 24 horas do dia selecionado.</li>
             <li>A animação anual percorre todos os dias do ano no horário atual.</li>
+            <li>Ajuste as dimensões ou desative a marquise/coluna conforme necessário.</li>
           </ul>
         </div>
       </section>

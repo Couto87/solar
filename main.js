@@ -1,5 +1,5 @@
-import * as THREE from 'https://cdn.skypack.dev/three@0.155.0';
-import { OrbitControls } from 'https://cdn.skypack.dev/three@0.155.0/examples/jsm/controls/OrbitControls.js';
+import * as THREE from 'https://unpkg.com/three@0.155.0/build/three.module.js?module';
+import { OrbitControls } from 'https://unpkg.com/three@0.155.0/examples/jsm/controls/OrbitControls.js?module';
 
 const rendererContainer = document.getElementById('renderer-container');
 const latitudeInput = document.getElementById('latitude');
@@ -14,6 +14,23 @@ const azimuthDisplay = document.getElementById('azimuth-display');
 const animateDayButton = document.getElementById('animate-day');
 const animateYearButton = document.getElementById('animate-year');
 const resetViewButton = document.getElementById('reset-view');
+const canopyEnabledInput = document.getElementById('canopy-enabled');
+const canopyLengthInput = document.getElementById('canopy-length');
+const canopyWidthInput = document.getElementById('canopy-width');
+const canopyThicknessInput = document.getElementById('canopy-thickness');
+const canopyHeightInput = document.getElementById('canopy-height');
+const canopyOffsetXInput = document.getElementById('canopy-offset-x');
+const canopyOffsetZInput = document.getElementById('canopy-offset-z');
+const columnEnabledInput = document.getElementById('column-enabled');
+const columnShapeInput = document.getElementById('column-shape');
+const columnRadiusInput = document.getElementById('column-radius');
+const columnWidthInput = document.getElementById('column-width');
+const columnDepthInput = document.getElementById('column-depth');
+const columnHeightInput = document.getElementById('column-height');
+const columnOffsetXInput = document.getElementById('column-offset-x');
+const columnOffsetZInput = document.getElementById('column-offset-z');
+const columnCircularRows = document.querySelectorAll('[data-column-shape="circular"]');
+const columnRectangularRows = document.querySelectorAll('[data-column-shape="rectangular"]');
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x050914);
@@ -63,28 +80,90 @@ scene.add(grid);
 const structureGroup = new THREE.Group();
 scene.add(structureGroup);
 
-const canopyGeometry = new THREE.BoxGeometry(6, 0.3, 3.5);
 const canopyMaterial = new THREE.MeshStandardMaterial({ color: 0x4ade80, roughness: 0.35, metalness: 0.2 });
-const canopy = new THREE.Mesh(canopyGeometry, canopyMaterial);
-canopy.position.set(0, 3.2, 0);
-canopy.castShadow = true;
-canopy.receiveShadow = true;
-structureGroup.add(canopy);
-
-const columnGeometry = new THREE.CylinderGeometry(0.35, 0.4, 3.2, 32);
 const columnMaterial = new THREE.MeshStandardMaterial({ color: 0x22d3ee, roughness: 0.4, metalness: 0.25 });
-const column = new THREE.Mesh(columnGeometry, columnMaterial);
-column.position.set(-2.5, 1.6, 1.2);
-column.castShadow = true;
-column.receiveShadow = true;
-structureGroup.add(column);
 
-const supportGeometry = new THREE.CylinderGeometry(0.35, 0.35, 3.2, 16);
-const support = new THREE.Mesh(supportGeometry, columnMaterial);
-support.position.set(2.5, 1.6, -1.2);
-support.castShadow = true;
-support.receiveShadow = true;
-structureGroup.add(support);
+let canopyMesh = null;
+let columnMesh = null;
+
+function disposeMesh(mesh) {
+  if (!mesh) return;
+  if (mesh.geometry) mesh.geometry.dispose();
+}
+
+function updateColumnFieldsVisibility() {
+  const shape = columnShapeInput.value;
+  columnCircularRows.forEach((row) => {
+    row.classList.toggle('hidden', shape !== 'circular');
+  });
+  columnRectangularRows.forEach((row) => {
+    row.classList.toggle('hidden', shape !== 'rectangular');
+  });
+}
+
+function updateCanopyGeometry() {
+  if (canopyMesh) {
+    structureGroup.remove(canopyMesh);
+    disposeMesh(canopyMesh);
+    canopyMesh = null;
+  }
+
+  if (!canopyEnabledInput.checked) {
+    return;
+  }
+
+  const length = Math.max(parseFloat(canopyLengthInput.value) || 0, 0.1);
+  const width = Math.max(parseFloat(canopyWidthInput.value) || 0, 0.1);
+  const thickness = Math.max(parseFloat(canopyThicknessInput.value) || 0, 0.05);
+  const height = parseFloat(canopyHeightInput.value) || 0;
+  const offsetX = parseFloat(canopyOffsetXInput.value) || 0;
+  const offsetZ = parseFloat(canopyOffsetZInput.value) || 0;
+
+  const geometry = new THREE.BoxGeometry(length, thickness, width);
+  canopyMesh = new THREE.Mesh(geometry, canopyMaterial);
+  canopyMesh.position.set(offsetX, height + thickness / 2, offsetZ);
+  canopyMesh.castShadow = true;
+  canopyMesh.receiveShadow = true;
+  structureGroup.add(canopyMesh);
+}
+
+function updateColumnGeometry() {
+  if (columnMesh) {
+    structureGroup.remove(columnMesh);
+    disposeMesh(columnMesh);
+    columnMesh = null;
+  }
+
+  if (!columnEnabledInput.checked) {
+    return;
+  }
+
+  const height = Math.max(parseFloat(columnHeightInput.value) || 0, 0.1);
+  const offsetX = parseFloat(columnOffsetXInput.value) || 0;
+  const offsetZ = parseFloat(columnOffsetZInput.value) || 0;
+  const shape = columnShapeInput.value;
+
+  let geometry;
+  if (shape === 'rectangular') {
+    const width = Math.max(parseFloat(columnWidthInput.value) || 0, 0.05);
+    const depth = Math.max(parseFloat(columnDepthInput.value) || 0, 0.05);
+    geometry = new THREE.BoxGeometry(width, height, depth);
+  } else {
+    const radius = Math.max(parseFloat(columnRadiusInput.value) || 0, 0.05);
+    geometry = new THREE.CylinderGeometry(radius, radius, height, 48);
+  }
+
+  columnMesh = new THREE.Mesh(geometry, columnMaterial);
+  columnMesh.position.set(offsetX, height / 2, offsetZ);
+  columnMesh.castShadow = true;
+  columnMesh.receiveShadow = true;
+  structureGroup.add(columnMesh);
+}
+
+function updateStructureGeometry() {
+  updateCanopyGeometry();
+  updateColumnGeometry();
+}
 
 const axisHelper = new THREE.AxesHelper(3);
 axisHelper.position.set(0, 0.02, 0);
@@ -262,10 +341,10 @@ animateYearButton.addEventListener('click', () => {
 });
 
 resetViewButton.addEventListener('click', () => {
+  stopAnimation();
   controls.reset();
   camera.position.set(12, 10, 12);
   controls.target.set(0, 2.5, 0);
-  stopAnimation();
 });
 
 [latitudeInput, timezoneInput, orientationInput, daySlider, timeSlider].forEach((input) => {
@@ -274,6 +353,39 @@ resetViewButton.addEventListener('click', () => {
     updateScene();
   });
 });
+
+const structureInputs = [
+  canopyEnabledInput,
+  canopyLengthInput,
+  canopyWidthInput,
+  canopyThicknessInput,
+  canopyHeightInput,
+  canopyOffsetXInput,
+  canopyOffsetZInput,
+  columnEnabledInput,
+  columnShapeInput,
+  columnRadiusInput,
+  columnWidthInput,
+  columnDepthInput,
+  columnHeightInput,
+  columnOffsetXInput,
+  columnOffsetZInput,
+];
+
+structureInputs.forEach((input) => {
+  const eventType = input.type === 'checkbox' || input.tagName === 'SELECT' ? 'change' : 'input';
+  input.addEventListener(eventType, () => {
+    stopAnimation();
+    if (input === columnShapeInput) {
+      updateColumnFieldsVisibility();
+    }
+    updateStructureGeometry();
+    updateScene();
+  });
+});
+
+updateColumnFieldsVisibility();
+updateStructureGeometry();
 
 window.addEventListener('resize', resizeRenderer);
 resizeRenderer();
