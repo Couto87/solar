@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Simulação de Sombras - Marquise e Coluna</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Simulação de Sombras: Marquise e Coluna</h1>
+      <p>
+        Ajuste os parâmetros solares para visualizar como a sombra gerada pela marquise e pela
+        coluna se comporta ao longo dos dias e meses.
+      </p>
+    </header>
+
+    <main>
+      <section class="controls">
+        <form id="settings-form">
+          <div class="input-group">
+            <label for="latitude">Latitude (&deg;)</label>
+            <input type="number" id="latitude" value="-23.55" step="0.01" required />
+          </div>
+          <div class="input-group">
+            <label for="timezone">Fuso Horário (UTC)</label>
+            <input type="number" id="timezone" value="-3" step="0.5" required />
+          </div>
+          <div class="input-group">
+            <label for="orientation">Azimute da Estrutura (&deg;)</label>
+            <input type="number" id="orientation" value="0" min="-180" max="180" step="1" />
+            <small>Rotação da marquise/coluna em relação ao Norte geográfico.</small>
+          </div>
+          <div class="input-group">
+            <label for="day-of-year">Dia do Ano</label>
+            <input type="range" id="day-of-year" min="1" max="365" value="80" />
+            <output id="date-display"></output>
+          </div>
+          <div class="input-group">
+            <label for="time-of-day">Hora do Dia</label>
+            <input type="range" id="time-of-day" min="0" max="24" value="12" step="0.25" />
+            <output id="time-display"></output>
+          </div>
+          <div class="info-panel">
+            <p><strong>Posição Solar</strong></p>
+            <p>Altitude: <span id="altitude-display">0&deg;</span></p>
+            <p>Azimute Solar: <span id="azimuth-display">0&deg;</span></p>
+          </div>
+          <div class="button-group">
+            <button type="button" id="animate-day">Animar Dia</button>
+            <button type="button" id="animate-year">Animar Ano</button>
+            <button type="button" id="reset-view">Reiniciar Visão</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="viewer">
+        <div id="renderer-container"></div>
+        <div class="legend">
+          <p><strong>Instruções:</strong></p>
+          <ul>
+            <li>Utilize o mouse para orbitar, aproximar e afastar a câmera.</li>
+            <li>A animação diária percorre 24 horas do dia selecionado.</li>
+            <li>A animação anual percorre todos os dias do ano no horário atual.</li>
+          </ul>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p>Desenvolvido para demonstrar o sombreamento sazonal de uma marquise e coluna.</p>
+    </footer>
+
+    <script type="module" src="main.js"></script>
+  </body>
+</html>
