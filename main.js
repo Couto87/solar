@@ -1,5 +1,5 @@
-import * as THREE from 'https://unpkg.com/three@0.155.0/build/three.module.js?module';
-import { OrbitControls } from 'https://unpkg.com/three@0.155.0/examples/jsm/controls/OrbitControls.js?module';
+import * as THREE from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
 const rendererContainer = document.getElementById('renderer-container');
 const latitudeInput = document.getElementById('latitude');
@@ -203,46 +203,91 @@ function sanitizeNumber(value, fallback, min) {
 }
 
 function updateStructureVisibility(structure) {
-  const type = structure.ui.type.value;
-  structure.ui.sections.horizontal.classList.toggle('hidden', type !== 'horizontal');
-  structure.ui.sections.vertical.classList.toggle('hidden', type !== 'vertical');
+  const type = structure.ui.type ? structure.ui.type.value : structure.data.type;
+  const isHorizontal = type === 'horizontal';
+  if (structure.ui.sections.horizontal) {
+    structure.ui.sections.horizontal.classList.toggle('hidden', !isHorizontal);
+  }
+  if (structure.ui.sections.vertical) {
+    structure.ui.sections.vertical.classList.toggle('hidden', isHorizontal);
+  }
 }
 
 function updateProfileVisibility(structure) {
-  const profile = structure.ui.profileSelect.value;
-  structure.ui.profileGroups.circular.classList.toggle('hidden', profile !== 'circular');
-  structure.ui.profileGroups.rectangular.classList.toggle('hidden', profile !== 'rectangular');
+  const profile = structure.ui.profileSelect ? structure.ui.profileSelect.value : structure.data.vertical.profile;
+  if (structure.ui.profileGroups.circular) {
+    structure.ui.profileGroups.circular.classList.toggle('hidden', profile !== 'circular');
+  }
+  if (structure.ui.profileGroups.rectangular) {
+    structure.ui.profileGroups.rectangular.classList.toggle('hidden', profile !== 'rectangular');
+  }
 }
 
 function updateStructurePlaceholder(structure) {
-  const placeholder = structure.ui.type.value === 'horizontal' ? 'Marquise' : 'Coluna';
+  if (!structure.ui.label) {
+    return;
+  }
+  const type = structure.ui.type ? structure.ui.type.value : structure.data.type;
+  const placeholder = type === 'horizontal' ? 'Marquise' : 'Coluna';
   structure.ui.label.placeholder = placeholder;
 }
 
 function parseStructureInputs(structure) {
   const data = structure.data;
-  data.enabled = structure.ui.enabled.checked;
-  data.label = structure.ui.label.value.trim();
-  data.type = structure.ui.type.value;
+  if (structure.ui.enabled) {
+    data.enabled = structure.ui.enabled.checked;
+  }
+  if (structure.ui.label) {
+    data.label = structure.ui.label.value.trim();
+  }
+  if (structure.ui.type) {
+    data.type = structure.ui.type.value;
+  }
 
   const hInputs = structure.ui.horizontalInputs;
   const h = data.horizontal;
-  h.length = sanitizeNumber(hInputs.length.value, h.length, 0.1);
-  h.width = sanitizeNumber(hInputs.width.value, h.width, 0.1);
-  h.thickness = sanitizeNumber(hInputs.thickness.value, h.thickness, 0.05);
-  h.height = sanitizeNumber(hInputs.height.value, h.height, 0);
-  h.offsetX = sanitizeNumber(hInputs.offsetX.value, h.offsetX ?? 0);
-  h.offsetZ = sanitizeNumber(hInputs.offsetZ.value, h.offsetZ ?? 0);
+  if (hInputs.length) {
+    h.length = sanitizeNumber(hInputs.length.value, h.length, 0.1);
+  }
+  if (hInputs.width) {
+    h.width = sanitizeNumber(hInputs.width.value, h.width, 0.1);
+  }
+  if (hInputs.thickness) {
+    h.thickness = sanitizeNumber(hInputs.thickness.value, h.thickness, 0.05);
+  }
+  if (hInputs.height) {
+    h.height = sanitizeNumber(hInputs.height.value, h.height, 0);
+  }
+  if (hInputs.offsetX) {
+    h.offsetX = sanitizeNumber(hInputs.offsetX.value, h.offsetX ?? 0);
+  }
+  if (hInputs.offsetZ) {
+    h.offsetZ = sanitizeNumber(hInputs.offsetZ.value, h.offsetZ ?? 0);
+  }
 
   const vInputs = structure.ui.verticalInputs;
   const v = data.vertical;
-  v.profile = structure.ui.profileSelect.value;
-  v.radius = sanitizeNumber(vInputs.radius.value, v.radius, 0.05);
-  v.width = sanitizeNumber(vInputs.width.value, v.width, 0.05);
-  v.depth = sanitizeNumber(vInputs.depth.value, v.depth, 0.05);
-  v.height = sanitizeNumber(vInputs.height.value, v.height, 0.1);
-  v.offsetX = sanitizeNumber(vInputs.offsetX.value, v.offsetX ?? 0);
-  v.offsetZ = sanitizeNumber(vInputs.offsetZ.value, v.offsetZ ?? 0);
+  if (structure.ui.profileSelect) {
+    v.profile = structure.ui.profileSelect.value;
+  }
+  if (vInputs.radius) {
+    v.radius = sanitizeNumber(vInputs.radius.value, v.radius, 0.05);
+  }
+  if (vInputs.width) {
+    v.width = sanitizeNumber(vInputs.width.value, v.width, 0.05);
+  }
+  if (vInputs.depth) {
+    v.depth = sanitizeNumber(vInputs.depth.value, v.depth, 0.05);
+  }
+  if (vInputs.height) {
+    v.height = sanitizeNumber(vInputs.height.value, v.height, 0.1);
+  }
+  if (vInputs.offsetX) {
+    v.offsetX = sanitizeNumber(vInputs.offsetX.value, v.offsetX ?? 0);
+  }
+  if (vInputs.offsetZ) {
+    v.offsetZ = sanitizeNumber(vInputs.offsetZ.value, v.offsetZ ?? 0);
+  }
 
   return data;
 }
@@ -345,6 +390,10 @@ function createStructure(dataInput = {}) {
   const data = mergeStructureData(dataInput);
   const fragment = structureTemplate.content.cloneNode(true);
   const fieldset = fragment.querySelector('[data-structure]');
+  if (!fieldset) {
+    console.error('Template de estrutura ausente: não foi possível criar o elemento.');
+    return null;
+  }
   const id = `structure-${++structureCounter}`;
   fieldset.dataset.structureId = id;
 
@@ -359,6 +408,25 @@ function createStructure(dataInput = {}) {
   const profileSelect = verticalSection.querySelector('[data-param="profile"]');
   const circularGroup = verticalSection.querySelector('[data-profile="circular"]');
   const rectangularGroup = verticalSection.querySelector('[data-profile="rectangular"]');
+
+  const criticalElements = [
+    ['title', titleEl],
+    ['removeButton', removeButton],
+    ['enabled', enabledInput],
+    ['label', labelInput],
+    ['type', typeSelect],
+    ['horizontalSection', horizontalSection],
+    ['verticalSection', verticalSection],
+    ['profileSelect', profileSelect],
+  ];
+
+  const missingCritical = criticalElements.filter(([, element]) => !element);
+  if (missingCritical.length) {
+    console.error(
+      `Template incompleto para o elemento ${id}: faltam ${missingCritical.map(([name]) => name).join(', ')}`,
+    );
+    return null;
+  }
 
   const horizontalInputs = {
     length: horizontalSection.querySelector('[data-param="length"]'),
@@ -384,21 +452,23 @@ function createStructure(dataInput = {}) {
   typeSelect.value = data.type;
 
   const h = data.horizontal;
-  horizontalInputs.length.value = h.length;
-  horizontalInputs.width.value = h.width;
-  horizontalInputs.thickness.value = h.thickness;
-  horizontalInputs.height.value = h.height;
-  horizontalInputs.offsetX.value = h.offsetX;
-  horizontalInputs.offsetZ.value = h.offsetZ;
+  Object.entries(horizontalInputs).forEach(([key, input]) => {
+    if (!input) {
+      return;
+    }
+    const value = h[key];
+    input.value = value ?? '';
+  });
 
   const v = data.vertical;
   profileSelect.value = v.profile;
-  verticalInputs.radius.value = v.radius;
-  verticalInputs.width.value = v.width;
-  verticalInputs.depth.value = v.depth;
-  verticalInputs.height.value = v.height;
-  verticalInputs.offsetX.value = v.offsetX;
-  verticalInputs.offsetZ.value = v.offsetZ;
+  Object.entries(verticalInputs).forEach(([key, input]) => {
+    if (!input || key === 'profile') {
+      return;
+    }
+    const value = v[key];
+    input.value = value ?? '';
+  });
 
   structuresContainer.appendChild(fieldset);
 
@@ -477,9 +547,11 @@ function createStructure(dataInput = {}) {
     verticalInputs.offsetZ,
   ];
 
-  numericInputs.forEach((input) => {
-    input.addEventListener('input', () => handleStructureInput(structure));
-  });
+  numericInputs
+    .filter((input) => input && typeof input.addEventListener === 'function')
+    .forEach((input) => {
+      input.addEventListener('input', () => handleStructureInput(structure));
+    });
 
   return structure;
 }
@@ -939,6 +1011,9 @@ addStructureButton.addEventListener('click', () => {
     type: 'horizontal',
     enabled: true,
   });
+  if (!newStructure) {
+    return;
+  }
   newStructure.fieldset.scrollIntoView({ behavior: 'smooth', block: 'center' });
   updateScene();
 });
@@ -958,7 +1033,12 @@ const initialStructures = [
   },
 ];
 
-initialStructures.forEach((config) => createStructure(config));
+initialStructures.forEach((config) => {
+  const structure = createStructure(config);
+  if (!structure) {
+    console.warn('Não foi possível inicializar um elemento de exemplo.', config);
+  }
+});
 
 refreshStructureTitles();
 rebuildAllStructures();
