@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Simulação de Sombras - Estruturas Dinâmicas</title>
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23fbbf24'/%3E%3Cstop offset='1' stop-color='%23f97316'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='12' fill='%23050914'/%3E%3Ccircle cx='22' cy='22' r='10' fill='url(%23g)'/%3E%3Cpath d='M14 46h36l-12-16-12 10-12-6z' fill='%231f2937'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Simulação de Sombras Dinâmicas</h1>
+      <p>
+        Configure latitude, fuso horário e azimute da cena e acrescente quantas estruturas
+        desejar para analisar o sombreamento ao longo dos dias e meses.
+      </p>
+    </header>
+
+    <main>
+      <section class="controls">
+        <form id="settings-form">
+          <div class="input-group">
+            <label for="latitude">Latitude (&deg;)</label>
+            <input type="number" id="latitude" value="-23.55" step="0.01" required />
+          </div>
+          <div class="input-group">
+            <label for="timezone">Fuso Horário (UTC)</label>
+            <input type="number" id="timezone" value="-3" step="0.5" required />
+          </div>
+          <div class="input-group">
+            <label for="orientation">Azimute da Estrutura (&deg;)</label>
+            <input type="number" id="orientation" value="0" min="-180" max="180" step="1" />
+            <small>Rotação global das estruturas em relação ao Norte geográfico.</small>
+          </div>
+
+          <div class="section-heading">Elementos de Sombreamento</div>
+          <p class="section-subtitle">
+            Use os controles abaixo para ativar, dimensionar e posicionar marquises, colunas ou
+            novos elementos personalizados.
+          </p>
+          <div class="structures-list" id="structures-container"></div>
+          <button type="button" id="add-structure" class="add-structure">Adicionar elemento</button>
+
+          <div class="section-heading">Parâmetros Solares</div>
+          <div class="input-group">
+            <label for="day-of-year">Dia do Ano</label>
+            <input type="range" id="day-of-year" min="1" max="365" value="80" />
+            <output id="date-display"></output>
+          </div>
+          <div class="input-group">
+            <label for="time-of-day">Hora do Dia</label>
+            <input type="range" id="time-of-day" min="0" max="24" value="12" step="0.25" />
+            <output id="time-display"></output>
+          </div>
+
+          <div class="info-panel">
+            <p><strong>Posição Solar</strong></p>
+            <p>Altitude: <span id="altitude-display">0&deg;</span></p>
+            <p>Azimute Solar: <span id="azimuth-display">0&deg;</span></p>
+            <p>Comprimento da sombra (gnômon 1&nbsp;m): <span id="shadow-length-display">0 m</span></p>
+          </div>
+
+          <div class="button-group">
+            <button type="button" id="animate-day">Animar Dia</button>
+            <button type="button" id="animate-year">Animar Ano</button>
+            <button type="button" id="reset-view">Reiniciar Visão</button>
+          </div>
+
+          <template id="structure-template">
+            <fieldset class="structure-fieldset" data-structure>
+              <legend>
+                <span class="structure-title">Elemento</span>
+                <div class="structure-actions">
+                  <button type="button" class="remove-structure" title="Remover elemento">&times;</button>
+                </div>
+              </legend>
+              <div class="structure-section">
+                <div class="input-group checkbox-group inline">
+                  <label for="">
+                    <span>Elemento ativo</span>
+                  </label>
+                  <input type="checkbox" data-field="enabled" checked />
+                </div>
+                <div class="input-group">
+                  <label>Nome</label>
+                  <input type="text" data-field="label" placeholder="Elemento" />
+                </div>
+                <div class="input-group">
+                  <label>Tipo</label>
+                  <select data-field="type">
+                    <option value="horizontal">Horizontal (Marquise)</option>
+                    <option value="vertical">Vertical (Coluna)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="structure-config horizontal-config">
+                <div class="structure-grid">
+                  <label>Comprimento (m)</label>
+                  <input type="number" min="0.5" step="0.1" data-param="length" />
+                  <label>Largura (m)</label>
+                  <input type="number" min="0.5" step="0.1" data-param="width" />
+                  <label>Espessura (m)</label>
+                  <input type="number" min="0.05" step="0.05" data-param="thickness" />
+                  <label>Altura da base (m)</label>
+                  <input type="number" min="0" step="0.1" data-param="height" />
+                  <label>Deslocamento X (m)</label>
+                  <input type="number" step="0.1" data-param="offsetX" />
+                  <label>Deslocamento Z (m)</label>
+                  <input type="number" step="0.1" data-param="offsetZ" />
+                </div>
+              </div>
+
+              <div class="structure-config vertical-config">
+                <div class="input-group">
+                  <label>Formato</label>
+                  <select data-param="profile">
+                    <option value="circular">Cilíndrico</option>
+                    <option value="rectangular">Retangular</option>
+                  </select>
+                </div>
+                <div class="structure-grid" data-profile="circular">
+                  <label>Raio (m)</label>
+                  <input type="number" min="0.05" step="0.05" data-param="radius" />
+                </div>
+                <div class="structure-grid" data-profile="rectangular">
+                  <label>Largura (m)</label>
+                  <input type="number" min="0.05" step="0.05" data-param="width" />
+                  <label>Profundidade (m)</label>
+                  <input type="number" min="0.05" step="0.05" data-param="depth" />
+                </div>
+                <div class="structure-grid">
+                  <label>Altura (m)</label>
+                  <input type="number" min="0.5" step="0.1" data-param="height" />
+                  <label>Deslocamento X (m)</label>
+                  <input type="number" step="0.1" data-param="offsetX" />
+                  <label>Deslocamento Z (m)</label>
+                  <input type="number" step="0.1" data-param="offsetZ" />
+                </div>
+              </div>
+            </fieldset>
+          </template>
+        </form>
+      </section>
+
+      <section class="viewer">
+        <div id="renderer-container"></div>
+        <div class="viewer-footer">
+          <div class="legend">
+            <p><strong>Instruções</strong></p>
+            <ul>
+              <li>Arraste com o mouse para orbitar, role para aproximar/afastar.</li>
+              <li>Ative ou duplique elementos para estudar diferentes cenários de sombra.</li>
+              <li>A carta solar destaca o caminho anual do sol e a posição/ sombra atuais.</li>
+              <li>O globo inclinado indica a latitude/longitude subsolar aproximada do horário selecionado.</li>
+            </ul>
+          </div>
+          <div class="solar-chart-card">
+            <h2>Carta Solar &amp; Sombra Projetada</h2>
+            <canvas id="solar-chart"></canvas>
+            <div class="chart-legend">
+              <span class="legend-dot annual"></span> Caminhos mensais
+              <span class="legend-dot daily"></span> Trajetória do dia selecionado
+              <span class="legend-dot current"></span> Sol atual
+              <span class="legend-line shadow"></span> Direção da sombra (gnômon 1&nbsp;m)
+            </div>
+          </div>
+          <div class="globe-card">
+            <h2>Globo Inclinado &amp; Insolação</h2>
+            <div id="globe-canvas"></div>
+            <div class="globe-info">
+              <div class="globe-info-row">
+                <span class="label">Latitude subsolar</span>
+                <span id="subsolar-latitude">0&deg;</span>
+              </div>
+              <div class="globe-info-row">
+                <span class="label">Longitude subsolar</span>
+                <span id="subsolar-longitude">0&deg;</span>
+              </div>
+              <div class="globe-info-row">
+                <span class="label">Longitude aproximada</span>
+                <span id="approx-longitude">0&deg;</span>
+              </div>
+            </div>
+            <p class="globe-note">Longitude estimada considera o centro do fuso horário informado.</p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p>Simulador interativo de sombreamento sazonal com múltiplas estruturas.</p>
+    </footer>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.155.0/build/three.module.min.js",
+          "three/examples/jsm/controls/OrbitControls.js": "https://cdn.jsdelivr.net/npm/three@0.155.0/examples/jsm/controls/OrbitControls.js"
+        }
+      }
+    </script>
+    <script type="module" src="main.js"></script>
+  </body>
+</html>
