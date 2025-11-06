@@ -23,6 +23,11 @@ const structureTemplate = document.getElementById('structure-template');
 const solarChartCanvas = document.getElementById('solar-chart');
 const solarChartCtx = solarChartCanvas.getContext('2d');
 
+const globeContainer = document.getElementById('globe-canvas');
+const subsolarLatitudeDisplay = document.getElementById('subsolar-latitude');
+const subsolarLongitudeDisplay = document.getElementById('subsolar-longitude');
+const approxLongitudeDisplay = document.getElementById('approx-longitude');
+
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x050914);
 
@@ -132,6 +137,285 @@ function createLabelSprite(text, color = '#bae6fd') {
   return sprite;
 }
 
+function wrapDegrees(value) {
+  if (!Number.isFinite(value)) {
+    return value;
+  }
+  let wrapped = ((value + 180) % 360 + 360) % 360 - 180;
+  if (Math.abs(wrapped) === 180) {
+    wrapped = wrapped === 180 ? 180 : -180;
+  }
+  return wrapped;
+}
+
+function formatSignedDegrees(value, fractionDigits = 2) {
+  if (!Number.isFinite(value)) {
+    return '—';
+  }
+  const formatter =
+    fractionDigits === 2
+      ? signedDegreeFormatter
+      : new Intl.NumberFormat('pt-BR', {
+          minimumFractionDigits: fractionDigits,
+          maximumFractionDigits: fractionDigits,
+        });
+  const formatted = formatter.format(Math.abs(value));
+  const sign = value >= 0 ? '+' : '−';
+  return `${sign}${formatted}°`;
+}
+
+function latLonToVector3(latitude, longitude, radius = 1) {
+  const latRad = THREE.MathUtils.degToRad(latitude);
+  const lonRad = THREE.MathUtils.degToRad(longitude);
+  const x = radius * Math.sin(lonRad) * Math.cos(latRad);
+  const y = radius * Math.sin(latRad);
+  const z = radius * Math.cos(lonRad) * Math.cos(latRad);
+  return new THREE.Vector3(x, y, z);
+}
+
+function setupGlobe() {
+  if (!globeContainer || globeRenderer) {
+    return;
+  }
+
+  globeScene = new THREE.Scene();
+  globeScene.background = null;
+
+  globeCamera = new THREE.PerspectiveCamera(32, 1, 0.1, 50);
+  globeCamera.position.set(0, 2.6, 6.4);
+  globeCamera.lookAt(0, 0, 0);
+
+  globeRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  globeRenderer.setPixelRatio(window.devicePixelRatio || 1);
+  globeContainer.appendChild(globeRenderer.domElement);
+
+  const ambient = new THREE.AmbientLight(0x0f172a, 0.85);
+  globeScene.add(ambient);
+
+  globeSunLight = new THREE.DirectionalLight(0xfff4cc, 1.25);
+  globeScene.add(globeSunLight);
+  globeSunTarget = new THREE.Object3D();
+  globeScene.add(globeSunTarget);
+  globeSunLight.target = globeSunTarget;
+
+  earthRoot = new THREE.Group();
+  globeScene.add(earthRoot);
+
+  orbitIndicatorGroup = new THREE.Group();
+  earthRoot.add(orbitIndicatorGroup);
+
+  const orbitRing = new THREE.Mesh(
+    new THREE.RingGeometry(3.45, 3.7, 128),
+    new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.22, side: THREE.DoubleSide })
+  );
+  orbitRing.rotation.x = Math.PI / 2;
+  orbitIndicatorGroup.add(orbitRing);
+
+  const seasonMarkers = new THREE.Group();
+  const seasonMarkerMaterial = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.55 });
+  const seasonMarkerRadius = 3.58;
+  for (let i = 0; i < 4; i += 1) {
+    const marker = new THREE.Mesh(new THREE.SphereGeometry(0.08, 16, 16), seasonMarkerMaterial);
+    const angle = (i * Math.PI) / 2;
+    marker.position.set(Math.sin(angle) * seasonMarkerRadius, 0, Math.cos(angle) * seasonMarkerRadius);
+    seasonMarkers.add(marker);
+  }
+  orbitIndicatorGroup.add(seasonMarkers);
+
+  const tiltGroup = new THREE.Group();
+  tiltGroup.rotation.x = axialTiltRad;
+  earthRoot.add(tiltGroup);
+
+  earthSurfaceGroup = new THREE.Group();
+  tiltGroup.add(earthSurfaceGroup);
+
+  const earthMaterial = new THREE.MeshPhongMaterial({
+    color: 0x1d4ed8,
+    emissive: 0x0b1120,
+    specular: 0x60a5fa,
+    shininess: 20,
+  });
+  const earthMesh = new THREE.Mesh(new THREE.SphereGeometry(earthRadius, 96, 96), earthMaterial);
+  earthSurfaceGroup.add(earthMesh);
+
+  const atmosphere = new THREE.Mesh(
+    new THREE.SphereGeometry(earthRadius * 1.02, 64, 64),
+    new THREE.MeshPhongMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.08, side: THREE.DoubleSide })
+  );
+  earthSurfaceGroup.add(atmosphere);
+
+  const equator = new THREE.Mesh(
+    new THREE.RingGeometry(earthRadius - 0.01, earthRadius + 0.01, 128),
+    new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.3, side: THREE.DoubleSide })
+  );
+  equator.rotation.x = Math.PI / 2;
+  earthSurfaceGroup.add(equator);
+
+  const tropicMaterial = new THREE.LineBasicMaterial({ color: 0x22d3ee, transparent: true, opacity: 0.35 });
+  [23.44, -23.44].forEach((lat) => {
+    const points = [];
+    for (let lon = 0; lon <= 360; lon += 5) {
+      points.push(latLonToVector3(lat, lon, earthRadius + 0.002));
+    }
+    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+    earthSurfaceGroup.add(new THREE.LineLoop(geometry, tropicMaterial));
+  });
+
+  const gridMaterial = new THREE.LineBasicMaterial({ color: 0x93c5fd, transparent: true, opacity: 0.18 });
+  for (let lat = -60; lat <= 60; lat += 30) {
+    const points = [];
+    for (let lon = 0; lon <= 360; lon += 6) {
+      points.push(latLonToVector3(lat, lon, earthRadius + 0.001));
+    }
+    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+    earthSurfaceGroup.add(new THREE.LineLoop(geometry, gridMaterial));
+  }
+
+  for (let lon = 0; lon < 360; lon += 30) {
+    const points = [];
+    for (let lat = -80; lat <= 80; lat += 4) {
+      points.push(latLonToVector3(lat, lon, earthRadius + 0.001));
+    }
+    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+    earthSurfaceGroup.add(new THREE.Line(geometry, gridMaterial));
+  }
+
+  const axisMaterial = new THREE.LineBasicMaterial({ color: 0xf97316, transparent: true, opacity: 0.65 });
+  const axisGeometry = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(0, -(earthRadius + 1.4), 0),
+    new THREE.Vector3(0, earthRadius + 1.4, 0),
+  ]);
+  const axisLine = new THREE.Line(axisGeometry, axisMaterial);
+  tiltGroup.add(axisLine);
+
+  const poleMaterial = new THREE.MeshBasicMaterial({ color: 0xf97316 });
+  const poleGeometry = new THREE.SphereGeometry(0.08, 16, 16);
+  const northPole = new THREE.Mesh(poleGeometry, poleMaterial);
+  northPole.position.set(0, earthRadius + 0.18, 0);
+  tiltGroup.add(northPole);
+  const southPole = northPole.clone();
+  southPole.position.set(0, -(earthRadius + 0.18), 0);
+  tiltGroup.add(southPole);
+
+  locationMarker = new THREE.Mesh(
+    new THREE.SphereGeometry(0.09, 16, 16),
+    new THREE.MeshBasicMaterial({ color: 0xfbbf24 })
+  );
+  earthSurfaceGroup.add(locationMarker);
+
+  subsolarMarker = new THREE.Mesh(
+    new THREE.SphereGeometry(0.11, 16, 16),
+    new THREE.MeshBasicMaterial({ color: 0xfacc15 })
+  );
+  earthSurfaceGroup.add(subsolarMarker);
+
+  sunArrow = new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, 0), 4.5, 0xfacc15, 0.9, 0.45);
+  globeScene.add(sunArrow);
+
+  sunBillboard = createLabelSprite('☀', '#facc15');
+  sunBillboard.scale.set(0.7, 0.7, 0.7);
+  sunBillboard.material.depthWrite = false;
+  sunBillboard.renderOrder = 2;
+  globeScene.add(sunBillboard);
+
+  resizeGlobeRenderer();
+}
+
+function updateGlobe(sunInfo) {
+  if (!globeScene || !sunInfo) {
+    return;
+  }
+
+  const latitudeValue = parseFloat(latitudeInput.value);
+  const timezoneValue = parseFloat(timezoneInput.value);
+  const latitude = Number.isFinite(latitudeValue) ? latitudeValue : 0;
+  const timezone = Number.isFinite(timezoneValue) ? timezoneValue : 0;
+
+  const approxLongitude = Number.isFinite(sunInfo.approxLongitude)
+    ? sunInfo.approxLongitude
+    : wrapDegrees(timezone * 15);
+  const subsolarLatitude = Number.isFinite(sunInfo.subsolarLatitude)
+    ? sunInfo.subsolarLatitude
+    : THREE.MathUtils.radToDeg(sunInfo.declination);
+  const subsolarLongitude = Number.isFinite(sunInfo.subsolarLongitude)
+    ? sunInfo.subsolarLongitude
+    : wrapDegrees(approxLongitude - sunInfo.hourAngleDeg);
+
+  if (subsolarLatitudeDisplay) {
+    subsolarLatitudeDisplay.textContent = formatSignedDegrees(subsolarLatitude, 2);
+  }
+  if (subsolarLongitudeDisplay) {
+    subsolarLongitudeDisplay.textContent = formatSignedDegrees(subsolarLongitude, 2);
+  }
+  if (approxLongitudeDisplay) {
+    approxLongitudeDisplay.textContent = formatSignedDegrees(approxLongitude, 2);
+  }
+
+  const hasSunVector = Number.isFinite(subsolarLatitude) && Number.isFinite(subsolarLongitude);
+
+  if (locationMarker) {
+    locationMarker.visible = Number.isFinite(latitude);
+    if (locationMarker.visible) {
+      locationMarker.position.copy(latLonToVector3(latitude, approxLongitude, earthRadius + 0.06));
+    }
+  }
+
+  if (subsolarMarker) {
+    subsolarMarker.visible = hasSunVector;
+    if (hasSunVector) {
+      subsolarMarker.position.copy(latLonToVector3(subsolarLatitude, subsolarLongitude, earthRadius + 0.06));
+    }
+  }
+
+  if (orbitIndicatorGroup) {
+    orbitIndicatorGroup.rotation.y = sunInfo.gamma || 0;
+  }
+
+  if (!earthSurfaceGroup) {
+    return;
+  }
+
+  const earthQuaternion = new THREE.Quaternion();
+  earthSurfaceGroup.getWorldQuaternion(earthQuaternion);
+
+  if (!hasSunVector) {
+    if (sunArrow) {
+      sunArrow.visible = false;
+    }
+    if (sunBillboard) {
+      sunBillboard.visible = false;
+    }
+    if (globeSunLight) {
+      globeSunLight.intensity = 0.4;
+    }
+    return;
+  }
+
+  const sunDirLocal = latLonToVector3(subsolarLatitude, subsolarLongitude, 1).normalize();
+  const sunDirWorld = sunDirLocal.clone().applyQuaternion(earthQuaternion).normalize();
+
+  if (globeSunLight && globeSunTarget) {
+    globeSunLight.position.copy(sunDirWorld.clone().multiplyScalar(10));
+    globeSunTarget.position.set(0, 0, 0);
+    globeSunLight.target.updateMatrixWorld();
+    globeSunLight.intensity = 1.2;
+  }
+
+  if (sunArrow) {
+    sunArrow.visible = true;
+    const arrowDirection = sunDirWorld.clone();
+    const arrowOrigin = arrowDirection.clone().multiplyScalar(earthRadius);
+    sunArrow.position.copy(arrowOrigin);
+    sunArrow.setDirection(arrowDirection);
+    sunArrow.setLength(3.8, 1, 0.45);
+  }
+
+  if (sunBillboard) {
+    sunBillboard.visible = true;
+    sunBillboard.position.copy(sunDirWorld.clone().multiplyScalar(earthRadius + 4.2));
+  }
+}
+
 const labelN = createLabelSprite('N');
 labelN.position.set(0, 0.02, compassRadius + 0.6);
 compassGroup.add(labelN);
@@ -165,6 +449,27 @@ let currentSunInfo = null;
 let chartPixelRatio = window.devicePixelRatio || 1;
 
 const monthLabels = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+const signedDegreeFormatter = new Intl.NumberFormat('pt-BR', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+const earthRadius = 1.6;
+const axialTiltRad = THREE.MathUtils.degToRad(23.44);
+
+let globeScene = null;
+let globeCamera = null;
+let globeRenderer = null;
+let globeSunLight = null;
+let globeSunTarget = null;
+let earthRoot = null;
+let earthSurfaceGroup = null;
+let locationMarker = null;
+let subsolarMarker = null;
+let sunArrow = null;
+let sunBillboard = null;
+let orbitIndicatorGroup = null;
 
 function mergeStructureData(initial = {}) {
   return {
@@ -602,6 +907,21 @@ function resizeSolarChartCanvas() {
   solarChartCanvas.height = Math.max(rect.height * dpr, 1);
 }
 
+function resizeGlobeRenderer() {
+  if (!globeRenderer || !globeContainer || !globeCamera) {
+    return;
+  }
+  const width = globeContainer.clientWidth;
+  const height = globeContainer.clientHeight;
+  if (!width || !height) {
+    return;
+  }
+  globeRenderer.setPixelRatio(window.devicePixelRatio || 1);
+  globeRenderer.setSize(width, height, false);
+  globeCamera.aspect = width / height;
+  globeCamera.updateProjectionMatrix();
+}
+
 function getDateFromDay(dayOfYear, year) {
   return new Date(Date.UTC(year, 0, dayOfYear));
 }
@@ -674,19 +994,25 @@ function getSunPosition(dateUTC, latitude, timezoneOffset) {
   );
   azimuth = (azimuth + Math.PI * 2) % (Math.PI * 2);
 
-  return { altitude, azimuth, hourAngleDeg };
+  return { altitude, azimuth, hourAngleDeg, declination, equationOfTime, gamma, trueSolarTime };
 }
 
 function updateSunLight() {
-  const latitude = parseFloat(latitudeInput.value);
-  const timezoneOffset = parseFloat(timezoneInput.value);
+  const latitudeValue = parseFloat(latitudeInput.value);
+  const timezoneValue = parseFloat(timezoneInput.value);
+  const latitude = Number.isFinite(latitudeValue) ? latitudeValue : 0;
+  const timezoneOffset = Number.isFinite(timezoneValue) ? timezoneValue : 0;
   const dayOfYear = Number(daySlider.value);
   const timeValue = parseFloat(timeSlider.value);
   const hours = Math.floor(timeValue);
   const minutes = Math.round((timeValue - hours) * 60);
   const dateUTC = new Date(Date.UTC(referenceYear, 0, dayOfYear, hours - timezoneOffset, minutes));
 
-  const { altitude, azimuth } = getSunPosition(dateUTC, latitude, timezoneOffset);
+  const { altitude, azimuth, hourAngleDeg, declination, equationOfTime, gamma } = getSunPosition(
+    dateUTC,
+    latitude,
+    timezoneOffset
+  );
 
   const altitudeDeg = THREE.MathUtils.radToDeg(altitude);
   const azimuthDeg = THREE.MathUtils.radToDeg(azimuth);
@@ -711,7 +1037,24 @@ function updateSunLight() {
     sunLight.intensity = 0;
   }
 
-  return { altitude, azimuth, altitudeDeg, azimuthDeg, shadowLength };
+  const subsolarLatitude = THREE.MathUtils.radToDeg(declination);
+  const approxLongitude = wrapDegrees((Number.isFinite(timezoneOffset) ? timezoneOffset : 0) * 15);
+  const subsolarLongitude = wrapDegrees(approxLongitude - hourAngleDeg);
+
+  return {
+    altitude,
+    azimuth,
+    altitudeDeg,
+    azimuthDeg,
+    shadowLength,
+    declination,
+    hourAngleDeg,
+    equationOfTime,
+    gamma,
+    subsolarLatitude,
+    subsolarLongitude,
+    approxLongitude,
+  };
 }
 
 function updateShadowDisplay(sunInfo) {
@@ -907,20 +1250,25 @@ function updateScene() {
   updateStructureOrientation();
   const sunInfo = updateSunLight();
   updateShadowDisplay(sunInfo);
+  updateGlobe(sunInfo);
   currentSunInfo = sunInfo;
   drawSolarChart(sunInfo);
 }
 
 function refreshDailySunPath() {
-  const latitude = parseFloat(latitudeInput.value);
-  const timezoneOffset = parseFloat(timezoneInput.value);
+  const latitudeValue = parseFloat(latitudeInput.value);
+  const timezoneValue = parseFloat(timezoneInput.value);
+  const latitude = Number.isFinite(latitudeValue) ? latitudeValue : 0;
+  const timezoneOffset = Number.isFinite(timezoneValue) ? timezoneValue : 0;
   const day = Number(daySlider.value);
   dailySunPath = computeDailySunPath(day, latitude, timezoneOffset);
 }
 
 function refreshSunPathData() {
-  const latitude = parseFloat(latitudeInput.value);
-  const timezoneOffset = parseFloat(timezoneInput.value);
+  const latitudeValue = parseFloat(latitudeInput.value);
+  const timezoneValue = parseFloat(timezoneInput.value);
+  const latitude = Number.isFinite(latitudeValue) ? latitudeValue : 0;
+  const timezoneOffset = Number.isFinite(timezoneValue) ? timezoneValue : 0;
   annualSunPaths = computeAnnualSunPaths(latitude, timezoneOffset);
   refreshDailySunPath();
 }
@@ -946,6 +1294,9 @@ function animate(timestamp) {
 
   controls.update();
   renderer.render(scene, camera);
+  if (globeRenderer && globeScene && globeCamera) {
+    globeRenderer.render(globeScene, globeCamera);
+  }
 }
 
 function stopAnimation() {
@@ -1040,10 +1391,13 @@ initialStructures.forEach((config) => {
   }
 });
 
+setupGlobe();
+
 refreshStructureTitles();
 rebuildAllStructures();
 resizeRenderer();
 resizeSolarChartCanvas();
+resizeGlobeRenderer();
 refreshSunPathData();
 updateScene();
 requestAnimationFrame(animate);
@@ -1051,6 +1405,7 @@ requestAnimationFrame(animate);
 window.addEventListener('resize', () => {
   resizeRenderer();
   resizeSolarChartCanvas();
+  resizeGlobeRenderer();
   drawSolarChart(currentSunInfo);
 });
 

@@ -156,6 +156,7 @@
               <li>Arraste com o mouse para orbitar, role para aproximar/afastar.</li>
               <li>Ative ou duplique elementos para estudar diferentes cenários de sombra.</li>
               <li>A carta solar destaca o caminho anual do sol e a posição/ sombra atuais.</li>
+              <li>O globo inclinado indica a latitude/longitude subsolar aproximada do horário selecionado.</li>
             </ul>
           </div>
           <div class="solar-chart-card">
@@ -167,6 +168,25 @@
               <span class="legend-dot current"></span> Sol atual
               <span class="legend-line shadow"></span> Direção da sombra (gnômon 1&nbsp;m)
             </div>
+          </div>
+          <div class="globe-card">
+            <h2>Globo Inclinado &amp; Insolação</h2>
+            <div id="globe-canvas"></div>
+            <div class="globe-info">
+              <div class="globe-info-row">
+                <span class="label">Latitude subsolar</span>
+                <span id="subsolar-latitude">0&deg;</span>
+              </div>
+              <div class="globe-info-row">
+                <span class="label">Longitude subsolar</span>
+                <span id="subsolar-longitude">0&deg;</span>
+              </div>
+              <div class="globe-info-row">
+                <span class="label">Longitude aproximada</span>
+                <span id="approx-longitude">0&deg;</span>
+              </div>
+            </div>
+            <p class="globe-note">Longitude estimada considera o centro do fuso horário informado.</p>
           </div>
         </div>
       </section>
